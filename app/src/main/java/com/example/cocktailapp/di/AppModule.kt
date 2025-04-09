@@ -1,11 +1,16 @@
 package com.example.cocktailapp.di
 
+import com.example.cocktailapp.data.api.CocktailApiService
+import com.example.cocktailapp.data.repository.CocktailRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -14,19 +19,32 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://www.thecocktaildb.com/api/json/v1/1/")
+    fun provideOkHttpClient(): OkHttpClient {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        return OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCocktailApiService(okHttpClient: OkHttpClient): CocktailApiService {
+        return Retrofit.Builder()
+            .baseUrl(CocktailApiService.BASE_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
+            .create(CocktailApiService::class.java)
+    }
 
     @Provides
     @Singleton
-    fun provideCocktailApi(retrofit: Retrofit): CocktailApiService =
-        retrofit.create(CocktailApiService::class.java)
-
-    @Provides
-    @Singleton
-    fun provideCocktailRepository(api: CocktailApiService): CocktailRepository =
-        CocktailRepository(api)
+    fun provideCocktailRepository(apiService: CocktailApiService): CocktailRepository {
+        return CocktailRepository(apiService)
+    }
 }
